@@ -604,7 +604,7 @@
       return await res.json();
     }
     async function loadProfile() {
-      var data = await fetchGitHub('https://api.github.com/users/' + USERNAME);
+      var data = await fetchGitHub('https://api.github.com/users/unalivable');
       userAvatar = data.avatar_url;
       return data;
     }
