@@ -47,17 +47,23 @@ jobs:
             if [[ -d "$repo_dir" ]]; then
               files_main="$md_repo/files/main"
               mkdir -p "$files_main"
+              # Добавляем ссылки на корневые элементы, пропуская файлы index.md
               find "$repo_dir" -mindepth 1 -maxdepth 1 -not -path "$repo_dir/.git"|while read -r item;do
                 rel_path=$(basename "$item")
+                if [[ -f "$item" && "$rel_path" == "index.md" ]]; then
+                  continue
+                fi
                 if [[ -d "$item" ]];then
                   echo "- [$rel_path/](./files/main/$rel_path/)" >> "$md_repo/index.md"
                 else
                   echo "- [$rel_path](./files/main/$rel_path/)" >> "$md_repo/index.md"
                 fi
               done
+              # Обрабатываем все элементы (файлы и папки) рекурсивно
               find "$repo_dir" -not -path "$repo_dir/.git/*" -not -path "$repo_dir/.git" -type f -o -type d|while read -r item;do
                 if [[ "$item" == "$repo_dir" ]]; then continue; fi
                 rel_path="${item#$repo_dir/}"
+                # Если это папка
                 if [[ -d "$item" ]]; then
                   target_dir="$files_main/$rel_path"
                   mkdir -p "$target_dir"
@@ -65,8 +71,12 @@ jobs:
                     echo "# Folder \`$rel_path\` / Папка \`$rel_path\`"
                     echo "Contents / Содержимое:"
                   } > "$target_dir/index.md"
+                  # Перечисляем элементы внутри папки, пропуская файлы index.md
                   find "$item" -mindepth 1 -maxdepth 1|while read -r child;do
                     child_name=$(basename "$child")
+                    if [[ -f "$child" && "$child_name" == "index.md" ]]; then
+                      continue
+                    fi
                     if [[ -d "$child" ]];then
                       echo "- [$child_name/](./$child_name/)" >> "$target_dir/index.md"
                     else
@@ -74,6 +84,11 @@ jobs:
                     fi
                   done
                 else
+                  # Это файл
+                  # Пропускаем файлы с именем index.md
+                  if [[ "$(basename "$item")" == "index.md" ]]; then
+                    continue
+                  fi
                   file_dir="$files_main/$rel_path"
                   mkdir -p "$file_dir"
                   if file "$item"|grep -q "text"; then
@@ -96,12 +111,16 @@ jobs:
                   fi
                 fi
               done
+              # Создаём index.md для корня репозитория (папка main)
               {
                 echo "# Root of repository $repo / Корень репозитория $repo"
                 echo "Contents / Содержимое корня:"
               } > "$files_main/index.md"
               find "$repo_dir" -mindepth 1 -maxdepth 1 -not -path "$repo_dir/.git"|while read -r child;do
                 child_name=$(basename "$child")
+                if [[ -f "$child" && "$child_name" == "index.md" ]]; then
+                  continue
+                fi
                 if [[ -d "$child" ]];then
                   echo "- [$child_name/](./$child_name/)" >> "$files_main/index.md"
                 else
