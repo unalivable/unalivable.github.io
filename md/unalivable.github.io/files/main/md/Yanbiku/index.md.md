@@ -1,14 +1,19 @@
-# unalivable.github.io
+# md/Yanbiku/index.md
+File / Файл
+Content / Содержание:
+```
+# Yanbiku
 Repository / Репозиторий
-Browse unalivable's public GitHub repositories, filter, and explore file trees.
-⭐ 0 · 🍴 0
-[GitHub Repository](https://github.com/unalivable/unalivable.github.io)
+Coming soon!!
+⭐ 1 · 🍴 0
+[GitHub Repository](https://github.com/unalivable/Yanbiku)
 ## Root items / Корневые элементы
-- [.github/](./files/main/.github/)
-- [index.html](./files/main/index.html)
-- [md/](./files/main/md/)
+- [README.md](./files/main/README.md/)
+- [webmanifest.data](./files/main/webmanifest.data/)
 
 ---
 ## WHY? / ПОЧЕМУ?
 This is a static Markdown version of the repository explorer, generated automatically to provide fast loading and offline browsing.
 Это статическая Markdown-версия обозревателя репозиториев, созданная автоматически для быстрой загрузки и просмотра без интернета.
+```
+[Back / Назад](../)

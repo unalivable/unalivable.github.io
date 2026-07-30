@@ -1,3 +1,7 @@
+# md/unalivable.github.io/files/main/.github/workflows/MDSync.yml/index.md
+File / Файл
+Content / Содержание:
+```
 # .github/workflows/MDSync.yml
 File / Файл
 Content / Содержание:
@@ -152,5 +156,7 @@ jobs:
         with:
           commit_message: "docs: sync Markdown site (bilingual) [skip ci]"
           file_pattern: "md/*"
+```
+[Back / Назад](../)
 ```
 [Back / Назад](../)
