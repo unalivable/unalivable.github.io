@@ -17,14 +17,12 @@ jobs:
           bio=$(echo "$profile"|jq -r '.bio//empty')
           avatar=$(echo "$profile"|jq -r '.avatar_url')
           html_url=$(echo "$profile"|jq -r '.html_url')
-          cat > "$OUT/index.md" <<EOF
-          # $name's GitHub / GitHub пользователя $name
-          ![avatar]($avatar)
-          @$login
-          $bio
-          [GitHub]($html_url)
-          ## Repositories / Репозитории
-          EOF
+          echo "# $name's GitHub / GitHub пользователя $name" > "$OUT/index.md"
+          echo "![avatar]($avatar)" >> "$OUT/index.md"
+          echo "@$login" >> "$OUT/index.md"
+          echo "$bio" >> "$OUT/index.md"
+          echo "[GitHub]($html_url)" >> "$OUT/index.md"
+          echo "## Repositories / Репозитории" >> "$OUT/index.md"
           repos=$(curl -s -H "Accept: application/vnd.github.v3+json" "https://api.github.com/users/unalivable/repos?sort=updated&per_page=100")
           repo_names=$(echo "$repos"|jq -r '.[].name')
           mkdir -p /tmp/repos
@@ -38,20 +36,24 @@ jobs:
             repo_url=$(echo "$repo_info"|jq -r '.html_url')
             git clone --depth 1 "https://github.com/unalivable/$repo.git" "$repo_dir" 2>/dev/null||true
             mkdir -p "$md_repo"
-            cat > "$md_repo/index.md" <<REPO_INDEX
-            # $repo
-            Repository / Репозиторий
-            $desc
-            ⭐ $stars · 🍴 $forks
-            [GitHub Repository]($repo_url)
-            ## Root items / Корневые элементы
-            REPO_INDEX
+            {
+              echo "# $repo"
+              echo "Repository / Репозиторий"
+              echo "$desc"
+              echo "⭐ $stars · 🍴 $forks"
+              echo "[GitHub Repository]($repo_url)"
+              echo "## Root items / Корневые элементы"
+            } > "$md_repo/index.md"
             if [[ -d "$repo_dir" ]]; then
               files_main="$md_repo/files/main"
               mkdir -p "$files_main"
               find "$repo_dir" -mindepth 1 -maxdepth 1 -not -path "$repo_dir/.git"|while read -r item;do
                 rel_path=$(basename "$item")
-                if [[ -d "$item" ]];then echo "- [$rel_path/](./files/main/$rel_path/)" >> "$md_repo/index.md"; else echo "- [$rel_path](./files/main/$rel_path/)" >> "$md_repo/index.md"; fi
+                if [[ -d "$item" ]];then
+                  echo "- [$rel_path/](./files/main/$rel_path/)" >> "$md_repo/index.md"
+                else
+                  echo "- [$rel_path](./files/main/$rel_path/)" >> "$md_repo/index.md"
+                fi
               done
               find "$repo_dir" -not -path "$repo_dir/.git/*" -not -path "$repo_dir/.git" -type f -o -type d|while read -r item;do
                 if [[ "$item" == "$repo_dir" ]]; then continue; fi
@@ -59,44 +61,52 @@ jobs:
                 if [[ -d "$item" ]]; then
                   target_dir="$files_main/$rel_path"
                   mkdir -p "$target_dir"
-                  cat > "$target_dir/index.md" <<FOLDER_INDEX
-                  # Folder \`$rel_path\` / Папка \`$rel_path\`
-                  Contents / Содержимое:
-                  FOLDER_INDEX
+                  {
+                    echo "# Folder \`$rel_path\` / Папка \`$rel_path\`"
+                    echo "Contents / Содержимое:"
+                  } > "$target_dir/index.md"
                   find "$item" -mindepth 1 -maxdepth 1|while read -r child;do
                     child_name=$(basename "$child")
-                    if [[ -d "$child" ]];then echo "- [$child_name/](./$child_name/)" >> "$target_dir/index.md"; else echo "- [$child_name](./$child_name/)" >> "$target_dir/index.md"; fi
+                    if [[ -d "$child" ]];then
+                      echo "- [$child_name/](./$child_name/)" >> "$target_dir/index.md"
+                    else
+                      echo "- [$child_name](./$child_name/)" >> "$target_dir/index.md"
+                    fi
                   done
                 else
                   file_dir="$files_main/$rel_path"
                   mkdir -p "$file_dir"
                   if file "$item"|grep -q "text"; then
                     content=$(cat "$item")
-                    cat > "$file_dir/index.md" <<FILE_INDEX
-                    # $rel_path
-                    File / Файл
-                    Content / Содержание:
-                    \`\`\`
-                    $content
-                    \`\`\`
-                    [Back / Назад](../)
-                    FILE_INDEX
+                    {
+                      echo "# $rel_path"
+                      echo "File / Файл"
+                      echo "Content / Содержание:"
+                      echo '```'
+                      echo "$content"
+                      echo '```'
+                      echo "[Back / Назад](../)"
+                    } > "$file_dir/index.md"
                   else
-                    cat > "$file_dir/index.md" <<BIN_INDEX
-                    # $rel_path
-                    ⚠️ Binary file / Бинарный файл
-                    [Back / Назад](../)
-                    BIN_INDEX
+                    {
+                      echo "# $rel_path"
+                      echo "⚠️ Binary file / Бинарный файл"
+                      echo "[Back / Назад](../)"
+                    } > "$file_dir/index.md"
                   fi
                 fi
               done
-              cat > "$files_main/index.md" <<MAIN_INDEX
-              # Root of repository $repo / Корень репозитория $repo
-              Contents / Содержимое корня:
-              MAIN_INDEX
+              {
+                echo "# Root of repository $repo / Корень репозитория $repo"
+                echo "Contents / Содержимое корня:"
+              } > "$files_main/index.md"
               find "$repo_dir" -mindepth 1 -maxdepth 1 -not -path "$repo_dir/.git"|while read -r child;do
                 child_name=$(basename "$child")
-                if [[ -d "$child" ]];then echo "- [$child_name/](./$child_name/)" >> "$files_main/index.md"; else echo "- [$child_name](./$child_name/)" >> "$files_main/index.md"; fi
+                if [[ -d "$child" ]];then
+                  echo "- [$child_name/](./$child_name/)" >> "$files_main/index.md"
+                else
+                  echo "- [$child_name](./$child_name/)" >> "$files_main/index.md"
+                fi
               done
             else
               echo "⚠️ Failed to clone $repo / Не удалось клонировать $repo" >> "$md_repo/index.md"
