@@ -11,6 +11,9 @@ jobs:
           OUT="md"
           rm -rf "$OUT"
           mkdir -p "$OUT"
+          # Создаём _config.yml, чтобы Jekyll понимал, что md — это просто папка с файлами
+          echo "include: [md]" > "$OUT/_config.yml"
+          echo "permalink: pretty" >> "$OUT/_config.yml"
           profile=$(curl -s -H "Accept: application/vnd.github.v3+json" "https://api.github.com/users/unalivable")
           login=$(echo "$profile"|jq -r '.login')
           name=$(echo "$profile"|jq -r '.name//empty')
@@ -47,7 +50,7 @@ jobs:
             if [[ -d "$repo_dir" ]]; then
               files_main="$md_repo/files/main"
               mkdir -p "$files_main"
-              # Добавляем ссылки на корневые элементы, пропуская файлы index.md
+              # Обрабатываем элементы в корне
               find "$repo_dir" -mindepth 1 -maxdepth 1 -not -path "$repo_dir/.git"|while read -r item;do
                 rel_path=$(basename "$item")
                 if [[ -f "$item" && "$rel_path" == "index.md" ]]; then
@@ -56,10 +59,11 @@ jobs:
                 if [[ -d "$item" ]];then
                   echo "- [$rel_path/](./files/main/$rel_path/)" >> "$md_repo/index.md"
                 else
-                  echo "- [$rel_path](./files/main/$rel_path/)" >> "$md_repo/index.md"
+                  # Файл: ссылка ведёт на сам файл (без слеша)
+                  echo "- [$rel_path](./files/main/$rel_path)" >> "$md_repo/index.md"
                 fi
               done
-              # Обрабатываем все элементы (файлы и папки) рекурсивно
+              # Рекурсивный обход всех элементов (папки и файлы)
               find "$repo_dir" -not -path "$repo_dir/.git/*" -not -path "$repo_dir/.git" -type f -o -type d|while read -r item;do
                 if [[ "$item" == "$repo_dir" ]]; then continue; fi
                 rel_path="${item#$repo_dir/}"
@@ -71,7 +75,7 @@ jobs:
                     echo "# Folder \`$rel_path\` / Папка \`$rel_path\`"
                     echo "Contents / Содержимое:"
                   } > "$target_dir/index.md"
-                  # Перечисляем элементы внутри папки, пропуская файлы index.md
+                  # Перечисляем элементы внутри папки
                   find "$item" -mindepth 1 -maxdepth 1|while read -r child;do
                     child_name=$(basename "$child")
                     if [[ -f "$child" && "$child_name" == "index.md" ]]; then
@@ -80,17 +84,19 @@ jobs:
                     if [[ -d "$child" ]];then
                       echo "- [$child_name/](./$child_name/)" >> "$target_dir/index.md"
                     else
-                      echo "- [$child_name](./$child_name/)" >> "$target_dir/index.md"
+                      # Файл: ссылка на файл (без слеша)
+                      echo "- [$child_name](./$child_name)" >> "$target_dir/index.md"
                     fi
                   done
                 else
-                  # Это файл
-                  # Пропускаем файлы с именем index.md
-                  if [[ "$(basename "$item")" == "index.md" ]]; then
+                  # Это файл — создаём .md-файл прямо в папке, а не подпапку
+                  file_path="$files_main/$rel_path"
+                  # Проверяем, не существует ли уже папка с таким именем
+                  if [[ -d "$file_path" ]]; then
+                    # Если папка существует, пропускаем (это уже обработано как директория)
                     continue
                   fi
-                  file_dir="$files_main/$rel_path"
-                  mkdir -p "$file_dir"
+                  # Создаём .md-файл
                   if file "$item"|grep -q "text"; then
                     content=$(cat "$item")
                     {
@@ -101,13 +107,13 @@ jobs:
                       echo "$content"
                       echo '```'
                       echo "[Back / Назад](../)"
-                    } > "$file_dir/index.md"
+                    } > "$file_path.md"
                   else
                     {
                       echo "# $rel_path"
                       echo "⚠️ Binary file / Бинарный файл"
                       echo "[Back / Назад](../)"
-                    } > "$file_dir/index.md"
+                    } > "$file_path.md"
                   fi
                 fi
               done
@@ -124,7 +130,7 @@ jobs:
                 if [[ -d "$child" ]];then
                   echo "- [$child_name/](./$child_name/)" >> "$files_main/index.md"
                 else
-                  echo "- [$child_name](./$child_name/)" >> "$files_main/index.md"
+                  echo "- [$child_name](./$child_name)" >> "$files_main/index.md"
                 fi
               done
             else
