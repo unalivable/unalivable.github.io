@@ -1,0 +1,156 @@
+# .github/workflows/MDSync.yml
+File / Файл
+Content / Содержание:
+```
+name: Sync Markdown Site
+on: workflow_dispatch
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions: { contents: write }
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          set -euo pipefail
+          OUT="md"
+          rm -rf "$OUT"
+          mkdir -p "$OUT"
+          profile=$(curl -s -H "Accept: application/vnd.github.v3+json" "https://api.github.com/users/unalivable")
+          login=$(echo "$profile"|jq -r '.login')
+          name=$(echo "$profile"|jq -r '.name//empty')
+          bio=$(echo "$profile"|jq -r '.bio//empty')
+          avatar=$(echo "$profile"|jq -r '.avatar_url')
+          html_url=$(echo "$profile"|jq -r '.html_url')
+          echo "# $name's GitHub / GitHub пользователя $name" > "$OUT/index.md"
+          echo "![avatar]($avatar)" >> "$OUT/index.md"
+          echo "@$login" >> "$OUT/index.md"
+          echo "$bio" >> "$OUT/index.md"
+          echo "[GitHub]($html_url)" >> "$OUT/index.md"
+          echo "## Repositories / Репозитории" >> "$OUT/index.md"
+          repos=$(curl -s -H "Accept: application/vnd.github.v3+json" "https://api.github.com/users/unalivable/repos?sort=updated&per_page=100")
+          repo_names=$(echo "$repos"|jq -r '.[].name')
+          mkdir -p /tmp/repos
+          echo "$repo_names"|while read -r repo; do
+            repo_dir="/tmp/repos/$repo"
+            md_repo="$OUT/$repo"
+            repo_info=$(curl -s -H "Accept: application/vnd.github.v3+json" "https://api.github.com/repos/unalivable/$repo")
+            desc=$(echo "$repo_info"|jq -r '.description//""')
+            stars=$(echo "$repo_info"|jq -r '.stargazers_count')
+            forks=$(echo "$repo_info"|jq -r '.forks_count')
+            repo_url=$(echo "$repo_info"|jq -r '.html_url')
+            git clone --depth 1 "https://github.com/unalivable/$repo.git" "$repo_dir" 2>/dev/null||true
+            mkdir -p "$md_repo"
+            {
+              echo "# $repo"
+              echo "Repository / Репозиторий"
+              echo "$desc"
+              echo "⭐ $stars · 🍴 $forks"
+              echo "[GitHub Repository]($repo_url)"
+              echo "## Root items / Корневые элементы"
+            } > "$md_repo/index.md"
+            if [[ -d "$repo_dir" ]]; then
+              files_main="$md_repo/files/main"
+              mkdir -p "$files_main"
+              # Добавляем ссылки на корневые элементы, пропуская файлы index.md
+              find "$repo_dir" -mindepth 1 -maxdepth 1 -not -path "$repo_dir/.git"|while read -r item;do
+                rel_path=$(basename "$item")
+                if [[ -f "$item" && "$rel_path" == "index.md" ]]; then
+                  continue
+                fi
+                if [[ -d "$item" ]];then
+                  echo "- [$rel_path/](./files/main/$rel_path/)" >> "$md_repo/index.md"
+                else
+                  echo "- [$rel_path](./files/main/$rel_path/)" >> "$md_repo/index.md"
+                fi
+              done
+              # Обрабатываем все элементы (файлы и папки) рекурсивно
+              find "$repo_dir" -not -path "$repo_dir/.git/*" -not -path "$repo_dir/.git" -type f -o -type d|while read -r item;do
+                if [[ "$item" == "$repo_dir" ]]; then continue; fi
+                rel_path="${item#$repo_dir/}"
+                # Если это папка
+                if [[ -d "$item" ]]; then
+                  target_dir="$files_main/$rel_path"
+                  mkdir -p "$target_dir"
+                  {
+                    echo "# Folder \`$rel_path\` / Папка \`$rel_path\`"
+                    echo "Contents / Содержимое:"
+                  } > "$target_dir/index.md"
+                  # Перечисляем элементы внутри папки, пропуская файлы index.md
+                  find "$item" -mindepth 1 -maxdepth 1|while read -r child;do
+                    child_name=$(basename "$child")
+                    if [[ -f "$child" && "$child_name" == "index.md" ]]; then
+                      continue
+                    fi
+                    if [[ -d "$child" ]];then
+                      echo "- [$child_name/](./$child_name/)" >> "$target_dir/index.md"
+                    else
+                      echo "- [$child_name](./$child_name/)" >> "$target_dir/index.md"
+                    fi
+                  done
+                else
+                  # Это файл
+                  # Пропускаем файлы с именем index.md
+                  if [[ "$(basename "$item")" == "index.md" ]]; then
+                    continue
+                  fi
+                  file_dir="$files_main/$rel_path"
+                  mkdir -p "$file_dir"
+                  if file "$item"|grep -q "text"; then
+                    content=$(cat "$item")
+                    {
+                      echo "# $rel_path"
+                      echo "File / Файл"
+                      echo "Content / Содержание:"
+                      echo '```'
+                      echo "$content"
+                      echo '```'
+                      echo "[Back / Назад](../)"
+                    } > "$file_dir/index.md"
+                  else
+                    {
+                      echo "# $rel_path"
+                      echo "⚠️ Binary file / Бинарный файл"
+                      echo "[Back / Назад](../)"
+                    } > "$file_dir/index.md"
+                  fi
+                fi
+              done
+              # Создаём index.md для корня репозитория (папка main)
+              {
+                echo "# Root of repository $repo / Корень репозитория $repo"
+                echo "Contents / Содержимое корня:"
+              } > "$files_main/index.md"
+              find "$repo_dir" -mindepth 1 -maxdepth 1 -not -path "$repo_dir/.git"|while read -r child;do
+                child_name=$(basename "$child")
+                if [[ -f "$child" && "$child_name" == "index.md" ]]; then
+                  continue
+                fi
+                if [[ -d "$child" ]];then
+                  echo "- [$child_name/](./$child_name/)" >> "$files_main/index.md"
+                else
+                  echo "- [$child_name](./$child_name/)" >> "$files_main/index.md"
+                fi
+              done
+            else
+              echo "⚠️ Failed to clone $repo / Не удалось клонировать $repo" >> "$md_repo/index.md"
+            fi
+            echo "" >> "$md_repo/index.md"
+            echo "---" >> "$md_repo/index.md"
+            echo "## WHY? / ПОЧЕМУ?" >> "$md_repo/index.md"
+            echo "This is a static Markdown version of the repository explorer, generated automatically to provide fast loading and offline browsing." >> "$md_repo/index.md"
+            echo "Это статическая Markdown-версия обозревателя репозиториев, созданная автоматически для быстрой загрузки и просмотра без интернета." >> "$md_repo/index.md"
+          done
+          echo "" >> "$OUT/index.md"
+          echo "---" >> "$OUT/index.md"
+          echo "## WHY? / ПОЧЕМУ?" >> "$OUT/index.md"
+          echo "This is a static Markdown version of the repository explorer, generated automatically to provide fast loading and offline browsing." >> "$OUT/index.md"
+          echo "Это статическая Markdown-версия обозревателя репозиториев, созданная автоматически для быстрой загрузки и просмотра без интернета." >> "$OUT/index.md"
+          echo "" >> "$OUT/index.md"
+          echo "---" >> "$OUT/index.md"
+          echo "Сгенерировано автоматически. [Исходник](https://github.com/unalivable/unalivable)" >> "$OUT/index.md"
+      - uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "docs: sync Markdown site (bilingual) [skip ci]"
+          file_pattern: "md/*"
+```
+[Back / Назад](../)
