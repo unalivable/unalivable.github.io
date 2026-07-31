@@ -8,47 +8,35 @@ jobs:
       - uses: actions/checkout@v4
       - run: |
           set -euo pipefail
-
-          OUT="docs"
+          OUT="md"
           rm -rf "$OUT"
           mkdir -p "$OUT"
-
-          # Конфиг для Jekyll (чтобы не трогал лишнее)
           cat > _config.yml <<'EOF'
           exclude:
             - node_modules
             - vendor
           include:
-            - docs
+            - md
           EOF
-
-          # --- профиль ---
           profile=$(curl -s -H "Accept: application/vnd.github.v3+json" "https://api.github.com/users/unalivable")
           login=$(echo "$profile" | jq -r '.login')
           name=$(echo "$profile" | jq -r '.name // empty')
           bio=$(echo "$profile" | jq -r '.bio // empty')
           avatar=$(echo "$profile" | jq -r '.avatar_url')
           html_url=$(echo "$profile" | jq -r '.html_url')
-
           echo "# $name's GitHub / GitHub пользователя $name" > "$OUT/index.md"
           echo "![avatar]($avatar)" >> "$OUT/index.md"
           echo "@$login" >> "$OUT/index.md"
           echo "$bio" >> "$OUT/index.md"
           echo "[GitHub]($html_url)" >> "$OUT/index.md"
           echo "## Repositories / Репозитории" >> "$OUT/index.md"
-
-          # --- список репозиториев ---
           repos=$(curl -s -H "Accept: application/vnd.github.v3+json" "https://api.github.com/users/unalivable/repos?sort=updated&per_page=100")
           repo_names=$(echo "$repos" | jq -r '.[].name')
           mkdir -p /tmp/repos
-
           echo "$repo_names" | while read -r repo; do
-            # Пропускаем Pages-репозиторий (чтобы не было конфликтов)
             if [[ "$repo" == "unalivable.github.io" ]]; then
-              echo "Skipping $repo (Pages repo)"
               continue
             fi
-
             repo_dir="/tmp/repos/$repo"
             md_repo="$OUT/$repo"
             repo_info=$(curl -s -H "Accept: application/vnd.github.v3+json" "https://api.github.com/repos/unalivable/$repo")
@@ -56,10 +44,8 @@ jobs:
             stars=$(echo "$repo_info" | jq -r '.stargazers_count')
             forks=$(echo "$repo_info" | jq -r '.forks_count')
             repo_url=$(echo "$repo_info" | jq -r '.html_url')
-
             git clone --depth 1 "https://github.com/unalivable/$repo.git" "$repo_dir" 2>/dev/null || true
             mkdir -p "$md_repo"
-
             {
               echo "# $repo"
               echo "Repository / Репозиторий"
@@ -68,29 +54,26 @@ jobs:
               echo "[GitHub Repository]($repo_url)"
               echo "## Root items / Корневые элементы"
             } > "$md_repo/index.md"
-
             if [[ -d "$repo_dir" ]]; then
               files_main="$md_repo/files/main"
               mkdir -p "$files_main"
-
-              # Ссылки на корневые элементы
               find "$repo_dir" -mindepth 1 -maxdepth 1 -not -path "$repo_dir/.git" | while read -r item; do
                 rel_path=$(basename "$item")
                 if [[ -f "$item" && "$rel_path" == "index.md" ]]; then
                   continue
                 fi
+                safe_name=$(echo "$rel_path" | sed 's/\./_/g')
                 if [[ -d "$item" ]]; then
                   echo "- [$rel_path/](./files/main/$rel_path/)" >> "$md_repo/index.md"
                 else
-                  echo "- [$rel_path](./files/main/$rel_path.md)" >> "$md_repo/index.md"
+                  echo "- [$rel_path](./files/main/$safe_name.md)" >> "$md_repo/index.md"
                 fi
               done
-
-              # Рекурсивный обход
               find "$repo_dir" -not -path "$repo_dir/.git/*" -not -path "$repo_dir/.git" -type f -o -type d | while read -r item; do
-                if [[ "$item" == "$repo_dir" ]]; then continue; fi
+                if [[ "$item" == "$repo_dir" ]]; then
+                  continue
+                fi
                 rel_path="${item#$repo_dir/}"
-
                 if [[ -d "$item" ]]; then
                   target_dir="$files_main/$rel_path"
                   mkdir -p "$target_dir"
@@ -98,21 +81,21 @@ jobs:
                     echo "# Folder \`$rel_path\` / Папка \`$rel_path\`"
                     echo "Contents / Содержимое:"
                   } > "$target_dir/index.md"
-
                   find "$item" -mindepth 1 -maxdepth 1 | while read -r child; do
                     child_name=$(basename "$child")
                     if [[ -f "$child" && "$child_name" == "index.md" ]]; then
                       continue
                     fi
+                    safe_child=$(echo "$child_name" | sed 's/\./_/g')
                     if [[ -d "$child" ]]; then
                       echo "- [$child_name/](./$child_name/)" >> "$target_dir/index.md"
                     else
-                      echo "- [$child_name](./$child_name.md)" >> "$target_dir/index.md"
+                      echo "- [$child_name](./$safe_child.md)" >> "$target_dir/index.md"
                     fi
                   done
                 else
-                  # Файл → создаём .md файл (не папку)
-                  file_path="$files_main/$rel_path.md"
+                  safe_name=$(echo "$rel_path" | sed 's/\./_/g')
+                  file_path="$files_main/$safe_name.md"
                   if [[ -d "$files_main/$rel_path" ]]; then
                     continue
                   fi
@@ -136,8 +119,6 @@ jobs:
                   fi
                 fi
               done
-
-              # index.md для корня (папка main)
               {
                 echo "# Root of repository $repo / Корень репозитория $repo"
                 echo "Contents / Содержимое корня:"
@@ -147,23 +128,21 @@ jobs:
                 if [[ -f "$child" && "$child_name" == "index.md" ]]; then
                   continue
                 fi
+                safe_child=$(echo "$child_name" | sed 's/\./_/g')
                 if [[ -d "$child" ]]; then
                   echo "- [$child_name/](./$child_name/)" >> "$files_main/index.md"
                 else
-                  echo "- [$child_name](./$child_name.md)" >> "$files_main/index.md"
+                  echo "- [$child_name](./$safe_child.md)" >> "$files_main/index.md"
                 fi
               done
             else
               echo "⚠️ Failed to clone $repo / Не удалось клонировать $repo" >> "$md_repo/index.md"
             fi
           done
-
-          # Добавляем footer на главную (без WHY)
           echo "" >> "$OUT/index.md"
           echo "---" >> "$OUT/index.md"
           echo "Сгенерировано автоматически. [Исходник](https://github.com/unalivable/unalivable)" >> "$OUT/index.md"
-
       - uses: stefanzweifel/git-auto-commit-action@v5
         with:
           commit_message: "docs: sync Markdown site [skip ci]"
-          file_pattern: "docs/* _config.yml"
+          file_pattern: "md/* _config.yml"
