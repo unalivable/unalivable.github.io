@@ -35,6 +35,7 @@ jobs:
           mkdir -p /tmp/repos
           echo "$repo_names" | while read -r repo; do
             if [[ "$repo" == "unalivable.github.io" ]]; then
+              echo "Skipping $repo"
               continue
             fi
             repo_dir="/tmp/repos/$repo"
@@ -139,6 +140,8 @@ jobs:
               echo "⚠️ Failed to clone $repo / Не удалось клонировать $repo" >> "$md_repo/index.md"
             fi
           done
+          # Удаляем папку unalivable.github.io, если она вдруг появилась
+          rm -rf "$OUT/unalivable.github.io"
           echo "" >> "$OUT/index.md"
           echo "---" >> "$OUT/index.md"
           echo "Сгенерировано автоматически. [Исходник](https://github.com/unalivable/unalivable)" >> "$OUT/index.md"
