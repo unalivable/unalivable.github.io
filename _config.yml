@@ -1,5 +1,4 @@
 exclude:
+  - md/unalivable.github.io
   - node_modules
   - vendor
-include:
-  - md
